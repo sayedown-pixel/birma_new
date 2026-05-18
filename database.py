@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
-SQLITE_DB_PATH = "smart_factory.db"
+SQLITE_DB_PATH = "birma_data.db"
 
 # ============================================================================
 # Database Models
@@ -183,20 +183,50 @@ class DatabaseManager:
         self._init_connection()
 
     def _init_connection(self):
-        # محاولة قراءة من Streamlit secrets أولاً (للويب)
+        # ── الخطوة 1: قراءة DATABASE_URL من كل المصادر الممكنة ──────────────
+        DATABASE_URL = ""
+
+        # أ) من Streamlit secrets
         try:
             import streamlit as st
-            if "database" in st.secrets:
-                os.environ["DATABASE_URL"] = st.secrets["database"]
-            elif "DATABASE_URL" in st.secrets:
-                os.environ["DATABASE_URL"] = st.secrets["DATABASE_URL"]
-        except:
-            pass
 
-        DATABASE_URL = os.getenv("DATABASE_URL", "")
+            # الصيغة المباشرة:  DATABASE_URL = "postgresql://..."
+            if "DATABASE_URL" in st.secrets:
+                val = st.secrets["DATABASE_URL"]
+                if isinstance(val, str) and val.strip():
+                    DATABASE_URL = val.strip()
+                    logger.info("✅ DATABASE_URL loaded from st.secrets (top-level key)")
 
-        if DATABASE_URL and DATABASE_URL.strip():
-            db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
+            # الصيغة بقسم:  [database] \n url = "..."
+            if not DATABASE_URL and "database" in st.secrets:
+                sec = st.secrets["database"]
+                if isinstance(sec, str) and sec.strip():
+                    DATABASE_URL = sec.strip()
+                elif hasattr(sec, "get"):
+                    for k in ("url", "DATABASE_URL", "connection_string", "postgres_url"):
+                        v = sec.get(k, "")
+                        if isinstance(v, str) and v.strip():
+                            DATABASE_URL = v.strip()
+                            break
+                if DATABASE_URL:
+                    logger.info("✅ DATABASE_URL loaded from st.secrets[database]")
+
+        except Exception as e:
+            logger.warning(f"Could not read st.secrets: {e}")
+
+        # ب) من متغيرات البيئة (.env أو النظام)
+        if not DATABASE_URL:
+            DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+            if DATABASE_URL:
+                logger.info("✅ DATABASE_URL loaded from environment variable")
+
+        # ── الخطوة 2: محاولة الاتصال بـ PostgreSQL ──────────────────────────
+        if DATABASE_URL:
+            db_url = DATABASE_URL
+            if db_url.startswith("postgresql://") and "+psycopg2" not in db_url:
+                db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            elif db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
 
             try:
                 self.engine = create_engine(
@@ -205,14 +235,16 @@ class DatabaseManager:
                     pool_pre_ping=True,
                     pool_size=5,
                     max_overflow=10,
+                    connect_args={"connect_timeout": 10},
                 )
-
                 with self.engine.connect() as conn:
                     result = conn.execute(text("SELECT version()"))
                     version = result.fetchone()
-                    logger.info(f"PostgreSQL connected: {version[0][:50]}...")
+                    logger.info(f"PostgreSQL connected: {version[0][:60]}...")
 
-                self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+                self.SessionLocal = sessionmaker(
+                    autocommit=False, autoflush=False, bind=self.engine
+                )
                 Base.metadata.create_all(bind=self.engine)
                 self._migrate_schema()
                 self._connected = True
@@ -224,14 +256,15 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"❌ PostgreSQL connection failed: {e}")
                 self._init_error = str(e)
-                self._connected = False
-                raise Exception(f"PostgreSQL connection required but failed: {e}")
+                # لا نرمي exception — نكمل إلى SQLite كـ fallback
 
-        # PostgreSQL is required - do not fall back to SQLite
-        logger.error("❌ DATABASE_URL not configured. PostgreSQL is required.")
-        self._init_error = "DATABASE_URL not configured"
-        self._connected = False
-        raise Exception("DATABASE_URL environment variable must be set for PostgreSQL connection")
+        else:
+            logger.warning("⚠️ DATABASE_URL not found — falling back to SQLite")
+            self._init_error = "DATABASE_URL not configured"
+
+        # ── الخطوة 3: SQLite كـ fallback ─────────────────────────────────────
+        logger.info("🔄 Initializing SQLite as fallback...")
+        self._init_sqlite()
     
     def _init_sqlite(self):
         try:
@@ -1036,4 +1069,4 @@ def get_database_url():
         logger.warning(f"Could not read from st.secrets: {e}")
     
     load_dotenv()
-    return os.getenv("DATABASE_URL", "")    
+    return os.getenv("DATABASE_URL", "")
