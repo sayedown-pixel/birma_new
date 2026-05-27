@@ -1,0 +1,12 @@
+{
+  "timestamp": "20260527_144917",
+  "date": "2026-05-27T14:49:17.839026",
+  "description": "",
+  "type": "manual",
+  "tables": {
+    "production": "backups\\manual\\production_20260527_144917.csv",
+    "maintenance": "backups\\manual\\maintenance_20260527_144917.csv",
+    "delivery": "backups\\manual\\delivery_20260527_144917.csv",
+    "raw_receipts": "backups\\manual\\raw_receipts_20260527_144917.csv"
+  }
+}

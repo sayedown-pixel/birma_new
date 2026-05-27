@@ -1,0 +1,10 @@
+{
+  "timestamp": "20260527_144810",
+  "date": "2026-05-27T14:48:10.900951",
+  "tables": {
+    "production": "backups\\auto\\production_20260527_144815.csv",
+    "maintenance": "backups\\auto\\maintenance_20260527_144815.csv",
+    "delivery": "backups\\auto\\delivery_20260527_144815.csv",
+    "raw_receipts": "backups\\auto\\raw_receipts_20260527_144815.csv"
+  }
+}
