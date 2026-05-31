@@ -14,75 +14,40 @@ REPORT_DIR = "reports"
 os.makedirs(REPORT_DIR, exist_ok=True)
 
 def send_weekly_report_email(recipient_email, start_date, end_date, line=None):
-    """
-    إرسال تقرير أسبوعي عبر البريد الإلكتروني
-    """
+    """إرسال تقرير أسبوعي عبر البريد الإلكتروني"""
+    
+    sender_email = st.secrets.get("sender_email", "")
+    sender_password = st.secrets.get("sender_password", "")
+    smtp_server = st.secrets.get("smtp_server", "smtp.gmail.com")
+    smtp_port = st.secrets.get("smtp_port", 587)
+    if not sender_email or not sender_password:
+            return False, "⚠️ لم يتم تكوين إعدادات البريد الإلكتروني"
+        
     try:
         from report_generator import generate_production_report_pdf
         
-        # قراءة الإعدادات من st.secrets
-        try:
-            sender_email = st.secrets.get("sender_email", "")
-            sender_password = st.secrets.get("sender_password", "")
-            smtp_server = st.secrets.get("smtp_server", "smtp.gmail.com")
-            smtp_port = st.secrets.get("smtp_port", 587)
-        except:
-            # إعدادات افتراضية للاختبار
-            sender_email = "sayedown1982@gmail.com"
-            sender_password = "your_password"
-            smtp_server = "smtp.gmail.com"
-            smtp_port = 587
-        
-        if not sender_email or not sender_password:
-            return False, "⚠️ لم يتم تكوين إعدادات البريد الإلكتروني. يرجى إضافة sender_email و sender_password في secrets.toml"
-        
-        # إنشاء التقرير وحفظه في مجلد محدد
         pdf_path = generate_production_report_pdf(start_date, end_date, line)
         
-        if not pdf_path or not os.path.exists(pdf_path):
-            return False, "❌ فشل إنشاء التقرير أو الملف غير موجود"
+        if not pdf_path:
+            return False, "❌ فشل إنشاء التقرير"
         
-        # نسخ الملف إلى مجلد التقارير لضمان بقائه
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_pdf_path = os.path.join(REPORT_DIR, f"report_{timestamp}.pdf")
-        
-        # نسخ الملف
-        import shutil
-        shutil.copy2(pdf_path, safe_pdf_path)
-        
-        # إنشاء البريد الإلكتروني
         msg = EmailMessage()
-        msg['Subject'] = f'تقرير الإنتاج الأسبوعي ({start_date.strftime("%Y-%m-%d")} إلى {end_date.strftime("%Y-%m-%d")})'
+        msg['Subject'] = f'تقرير الإنتاج الأسبوعي ({start_date.date()} إلى {end_date.date()})'
         msg['From'] = sender_email
         msg['To'] = recipient_email
-        
-        # نص البريد
-        email_body = f"""
+        msg.set_content(f"""
         السادة المديرين،
 
-        يرفق هذا البريد تقرير الإنتاج الأسبوعي للفترة من {start_date.strftime("%Y-%m-%d")} إلى {end_date.strftime("%Y-%m-%d")}.
-
-        تفاصيل التقرير:
-        - الفترة: {start_date.strftime("%Y-%m-%d")} إلى {end_date.strftime("%Y-%m-%d")}
-        - {'الخط: ' + line if line else 'جميع الخطوط'}
-        - تاريخ الإنشاء: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        يرفق هذا البريد تقرير الإنتاج الأسبوعي للفترة من {start_date.date()} إلى {end_date.date()}.
 
         مع تحيات،
-        نظام المصنع الذكي - Smart Factory System
-        """
+        نظام المصنع الذكي
+        """)
         
-        msg.set_content(email_body)
+        with open(pdf_path, 'rb') as f:
+            msg.add_attachment(f.read(), maintype='application', subtype='pdf', 
+                             filename=f'report_{datetime.now().strftime("%Y%m%d")}.pdf')
         
-        # إرفاق الملف
-        with open(safe_pdf_path, 'rb') as f:
-            msg.add_attachment(
-                f.read(),
-                maintype='application',
-                subtype='pdf',
-                filename=f'report_{timestamp}.pdf'
-            )
-        
-        # إرسال البريد
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.ehlo()
             server.starttls()
@@ -90,17 +55,12 @@ def send_weekly_report_email(recipient_email, start_date, end_date, line=None):
             server.login(sender_email, sender_password)
             server.send_message(msg)
         
-        # تنظيف الملفات المؤقتة (اختياري - احتفظ بها للتصحيح)
-        try:
-            os.unlink(pdf_path)  # حذف الملف المؤقت الأصلي
-        except:
-            pass
+        import os
+        os.unlink(pdf_path)
         
-        return True, f"✅ تم إرسال التقرير بنجاح إلى {recipient_email}"
+        return True, "✅ تم إرسال التقرير بنجاح!"
         
     except smtplib.SMTPAuthenticationError:
-        return False, "❌ فشل المصادقة: يرجى التحقق من البريد الإلكتروني وكلمة المرور"
-    except smtplib.SMTPException as e:
-        return False, f"❌ خطأ في SMTP: {str(e)}"
+        return False, "❌ فشل المصادقة: تحقق من البريد الإلكتروني وكلمة المرور"
     except Exception as e:
         return False, f"❌ فشل الإرسال: {str(e)}"
