@@ -28,7 +28,7 @@ def send_weekly_report_email(recipient_email, start_date, end_date, line=None):
             smtp_port = st.secrets.get("smtp_port", 587)
         except:
             # إعدادات افتراضية للاختبار
-            sender_email = "your_email@gmail.com"
+            sender_email = "sayedown1982@gmail.com"
             sender_password = "your_password"
             smtp_server = "smtp.gmail.com"
             smtp_port = 587
