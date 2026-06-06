@@ -694,7 +694,7 @@ def show_dashboard(df_main, df_raw, df_fg, t, selected_line):
     
     # معلومات الوردية والتنبيهات
     show_shift_info_dashboard(t)
-    show_alerts_panel(t)
+    #show_alerts_panel(t)
     
     # الشريط المتحرك
     if df_raw is not None and df_fg is not None:
