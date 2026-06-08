@@ -377,13 +377,13 @@ def main():
     # تطبيق التنسيقات
     apply_custom_css()
      # ✅ تشغيل المجدول الأسبوعي (مرة واحدة فقط)
-    if 'scheduler_started' not in st.session_state:
-        try:
-            from email_sender import start_weekly_scheduler
-            start_weekly_scheduler()
-            st.session_state.scheduler_started = True
-        except Exception as e:
-            print(f"Scheduler start error: {e}")   
+    # if 'scheduler_started' not in st.session_state:
+    #     try:
+    #         from email_sender import start_weekly_scheduler
+    #         start_weekly_scheduler()
+    #         st.session_state.scheduler_started = True
+    #     except Exception as e:
+    #         print(f"Scheduler start error: {e}")
     
     # تهيئة الجلسة أولاً
     init_session_state()
